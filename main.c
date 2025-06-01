@@ -13,21 +13,16 @@
 
 
 //Получает указатель на массив чаров
-//Работает прямо поверх массива, возвращая указатель на массив строк без пробелов по краям
-static char ** trim(char **untrimmed) {
-    char *start = *untrimmed;
-    while (*start && __isctype(((char)*start), _ISspace)) start++;
-    //пустая строка - выход
-    if (*start == '\0') {
-        **untrimmed = '\0';
-        return untrimmed;
+//Работает прямо поверх массива строк
+void trim(char *s) {
+    char *dest = s;
+    while (*s != '\0') {
+        if (!isspace(*s) || (s == dest || !isspace(*(dest - 1)))) {
+            *dest++ = *s;
+        }
+        s++;
     }
-
-    char *end = start + strlen(start) - 1;
-    while (end > start && __isctype(((char)*end), _ISspace)) end--;
-    //подвешиваем nullifier как только встретили не пробел
-    *(end + 1) = '\0';
-    return &start;
+    *dest = '\0';
 }
 
 
@@ -73,7 +68,7 @@ char ***tokenize(char *str, int *num_commands) {
     char *segment = str;
     for (int i = 0; i < *num_commands; i++) {
         char *piece = strsepparator(&segment, "|");
-        trim(&piece);
+        trim(piece);
 
         int argc = 0;
         char *start = piece;
@@ -110,8 +105,10 @@ int main(int argc, char *argv[]) {
 
 
     while (1) {
+        write(STDOUT_FILENO, "Write your prog, X to exit \n", strlen("Write your prog, X to exit \n"));
+
         //считываем с Input fd, при виде X завершаем работу
-        if (read(STDIN_FILENO, buffer, sizeof(buffer)) || buffer[0] == 'X') {
+        if (read(STDIN_FILENO, buffer, sizeof(buffer)) == 0 || buffer[0] == 'X') {
             write(STDOUT_FILENO, exit_msg, strlen(exit_msg));
             break;
         }
@@ -125,7 +122,7 @@ int main(int argc, char *argv[]) {
         //токенезация
         int token_count;
         char *trimmed = buffer;
-        trim(&trimmed);
+        trim(trimmed);
         char ***tokens = tokenize(trimmed, &token_count);
         int pipe_links[token_count][2];
         for (int i = 0; i < token_count - 1; i++) {
@@ -139,6 +136,8 @@ int main(int argc, char *argv[]) {
 
 
         for (int i = 0; i < token_count; ++i) {
+            //printf("SO I AM GONNA EXECUTE amount %d\n", token_count);
+
             pid_t pid = fork();
             if (pid == -1) {
                 perror("forked with error");
@@ -147,11 +146,11 @@ int main(int argc, char *argv[]) {
 
             if (pid == 0) {
                 //Child process
-                printf("FORKED! \n");
-
+                //printf("FORKED! \n");
+                write(STDOUT_FILENO, "FORKED! \n", strlen("FORKED! \n"));
                 char path[128] = "bin/";
                 strcat(path, tokens[i][0]);
-                printf("SO I AM GONNA EXECUTE %s\n", tokens[i][0]);
+                //printf("SO I AM GONNA EXECUTE %s\n", tokens[i][0]);
 
                 if (i > 0) {
                     dup2(pipe_links[i - 1][0], STDIN_FILENO);
@@ -184,6 +183,9 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < MAX_SPLIT_AMOUNT; i++) {
             waitpid(pids[i], NULL, 0);
         }
+
+        //printf("I waited for everyone!");
+        write(STDOUT_FILENO, "I waited for everyone! \n", strlen("I waited for everyone! \n"));
 
 
         for (int i = 0; i < token_count; i++) {
